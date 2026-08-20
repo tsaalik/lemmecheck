@@ -1,0 +1,12 @@
+{
+  "name": "first-pitch",
+  "version": "1.0.0",
+  "description": "First Pitch — a simple MLB scores app with favorite-team filtering.",
+  "private": true,
+  "scripts": {
+    "dev": "live-server --port=8080"
+  },
+  "devDependencies": {
+    "live-server": "^1.2.2"
+  }
+}
