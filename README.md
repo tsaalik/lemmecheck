@@ -1,23 +1,23 @@
-# First Pitch
+# The Hub
 
-A simple MLB scores app. Star your favorite teams to filter the schedule down to just their games.
+A simple scoreboard for Boston's four major pro teams — Red Sox (MLB), Patriots (NFL),
+Celtics (NBA), and Bruins (NHL) — all in one place. Use the tabs at the top to see all of
+them or filter down to a single team.
 
 ## Project structure
 
 ```
-first-pitch/
+the-hub/
 ├── index.html       # page structure
 ├── css/
 │   └── style.css    # all styling
 ├── js/
-│   └── app.js        # game data + all app logic
+│   └── app.js        # team + game data, and all app logic
 ├── package.json      # dev server setup
 └── README.md
 ```
 
-No frameworks, no build step — just HTML, CSS, and JavaScript. Favorite teams are saved in
-your browser's `localStorage`, so they'll still be there next time you open the app (in the
-same browser, on the same computer).
+No frameworks, no build step — just HTML, CSS, and JavaScript.
 
 ## Running it locally
 
@@ -50,7 +50,6 @@ same browser, on the same computer).
 
 ## Where the data comes from
 
-The scores in `js/app.js` are hard-coded sample data (a snapshot of real games), not a live
-feed. To show real, up-to-date scores you'd eventually replace the `games` array with a
-`fetch()` call to a sports-data API — that's a good next step once you're comfortable with
-the basics here.
+The scores in `js/app.js` are hard-coded placeholder data, not a live feed. To show real,
+up-to-date scores you'd eventually replace the `games` array with a `fetch()` call to a
+sports-data API — that's a good next step once you're comfortable with the basics here.
