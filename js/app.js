@@ -1,10 +1,11 @@
 // ---- Boston teams ----
 // Each code maps to exactly one Boston team, since that's all this app tracks.
+// `color` tints each team's launcher badge — a simple stand-in for a real logo.
 const TEAMS = [
-  {code:"MLB", name:"Red Sox",   emoji:"⚾"},
-  {code:"NFL", name:"Patriots",  emoji:"🏈"},
-  {code:"NBA", name:"Celtics",   emoji:"🏀"},
-  {code:"NHL", name:"Bruins",    emoji:"🏒"},
+  {code:"MLB", name:"Red Sox",   emoji:"⚾", color:"#bd3039"},
+  {code:"NFL", name:"Patriots",  emoji:"🏈", color:"#002244"},
+  {code:"NBA", name:"Celtics",   emoji:"🏀", color:"#007a33"},
+  {code:"NHL", name:"Bruins",    emoji:"🏒", color:"#111111"},
 ];
 
 // ---- Sample data ----
@@ -31,8 +32,6 @@ const games = [
   {id:"nhl3", code:"NHL", date:"Oct 30", opponent:"Canadiens",    home:false, time:"7:00 PM", status:"scheduled"},
 ];
 
-let selectedTab = "All";
-
 function mockHighlights(g, teamName){
   if(g.status !== 'final') return null;
   const diff = Math.abs(g.teamScore - g.oppScore);
@@ -50,89 +49,102 @@ function mockHighlights(g, teamName){
   return bullets;
 }
 
-function renderTabs(){
-  const bar = document.getElementById('teamTabs');
-  const labels = ["All", ...TEAMS.map(t=>t.name)];
-  bar.innerHTML = labels.map(label=>
-    `<div class="team-chip ${selectedTab===label?'active':''}" data-tab="${label}">${label}</div>`
-  ).join('');
-  bar.querySelectorAll('.team-chip').forEach(el=>{
-    el.addEventListener('click', ()=>{
-      selectedTab = el.dataset.tab;
-      render();
-    });
+function gameCardHtml(g, team){
+  const hl = mockHighlights(g, team.name);
+  // Always show the away team on top, home team on the bottom — Boston's
+  // row gets the gold highlight no matter which side it's on.
+  const awayLabel = g.home ? g.opponent : team.name;
+  const homeLabel = g.home ? team.name : g.opponent;
+  const awayScore = g.home ? g.oppScore : g.teamScore;
+  const homeScore = g.home ? g.teamScore : g.oppScore;
+  return `
+  <div class="game" id="game-${g.id}">
+    <div class="game-row" data-id="${g.id}">
+      <div class="matchup">
+        <div class="team">
+          <span class="team-name ${!g.home ? 'boston' : ''}">${awayLabel}</span>
+          ${g.status==='final' ? `<span class="score">${awayScore}</span>` : ''}
+        </div>
+        <div class="team">
+          <span class="team-name ${g.home ? 'boston' : ''}">${homeLabel}</span>
+          ${g.status==='final' ? `<span class="score">${homeScore}</span>` : ''}
+        </div>
+      </div>
+      <div class="status ${g.status==='final'?'final':''}">${g.status==='final' ? 'FINAL' : g.time}</div>
+      <div class="chev">▶</div>
+    </div>
+    ${g.status==='final' ? `
+    <div class="highlights">
+      <p>Highlights</p>
+      <ul>${hl.map(h=>`<li>${h}</li>`).join('')}</ul>
+      <div class="note">These highlight lines are placeholders — swap in a real sports-highlights API to show actual clips and plays.</div>
+    </div>` : `
+    <div class="highlights">
+      <p>Highlights</p>
+      <div class="note">Game hasn't started yet — highlights will appear here once it's final.</div>
+    </div>`}
+  </div>`;
+}
+
+function renderHome(){
+  const grid = document.getElementById('launcherGrid');
+  grid.innerHTML = TEAMS.map(team=>`
+    <div class="launcher" data-code="${team.code}">
+      <div class="icon" style="background:${team.color}">${team.emoji}</div>
+      <div class="name">${team.name}</div>
+    </div>
+  `).join('');
+  grid.querySelectorAll('.launcher').forEach(el=>{
+    el.addEventListener('click', ()=>showTeam(el.dataset.code));
   });
 }
 
-function render(){
-  renderTabs();
-  const sectionsEl = document.getElementById('sections');
+function showHome(){
+  document.getElementById('home-screen').classList.add('active');
+  document.getElementById('team-screen').classList.remove('active');
+}
+
+function showTeam(code){
+  const team = TEAMS.find(t=>t.code===code);
+  document.getElementById('teamHeader').innerHTML = `
+    <div class="team-header">
+      <div class="icon" style="background:${team.color}">${team.emoji}</div>
+      <h2>${team.name}</h2>
+    </div>`;
+
+  const teamGames = games.filter(g=>g.code===code);
+  const upcoming = teamGames.find(g=>g.status==='scheduled');
+  // Most recent result first.
+  const recent = teamGames.filter(g=>g.status==='final').slice().reverse();
+
   let html = '';
-  let anyTeams = false;
-
-  TEAMS.forEach(team=>{
-    if(selectedTab !== 'All' && selectedTab !== team.name) return;
-    const teamGames = games.filter(g=>g.code===team.code);
-    if(!teamGames.length) return;
-    anyTeams = true;
-
-    html += `<div class="section-label"><span class="emoji">${team.emoji}</span> ${team.name}</div>`;
-
-    const hasUpcoming = teamGames.some(g=>g.status==='scheduled');
-
-    teamGames.forEach(g=>{
-      const hl = mockHighlights(g, team.name);
-      // Always show the away team on top, home team on the bottom — Boston's
-      // row gets the gold highlight no matter which side it's on.
-      const awayLabel = g.home ? g.opponent : team.name;
-      const homeLabel = g.home ? team.name : g.opponent;
-      const awayScore = g.home ? g.oppScore : g.teamScore;
-      const homeScore = g.home ? g.teamScore : g.oppScore;
-      html += `
-      <div class="game" id="game-${g.id}">
-        <div class="game-row" data-id="${g.id}">
-          <div class="matchup">
-            <div class="team">
-              <span class="team-name ${!g.home ? 'boston' : ''}">${awayLabel}</span>
-              ${g.status==='final' ? `<span class="score">${awayScore}</span>` : ''}
-            </div>
-            <div class="team">
-              <span class="team-name ${g.home ? 'boston' : ''}">${homeLabel}</span>
-              ${g.status==='final' ? `<span class="score">${homeScore}</span>` : ''}
-            </div>
-          </div>
-          <div class="status ${g.status==='final'?'final':''}">${g.status==='final' ? 'FINAL' : g.time}</div>
-          <div class="chev">▶</div>
-        </div>
-        ${g.status==='final' ? `
-        <div class="highlights">
-          <p>Highlights</p>
-          <ul>${hl.map(h=>`<li>${h}</li>`).join('')}</ul>
-          <div class="note">These highlight lines are placeholders — swap in a real sports-highlights API to show actual clips and plays.</div>
-        </div>` : `
-        <div class="highlights">
-          <p>Highlights</p>
-          <div class="note">Game hasn't started yet — highlights will appear here once it's final.</div>
-        </div>`}
-      </div>`;
-    });
-
-    if(!hasUpcoming){
-      html += `<div class="season-note">Season complete for the ${team.name} — next game will show here once it's scheduled.</div>`;
-    }
-  });
-
-  if(!anyTeams){
-    html = `<div class="empty">No games to show for that team yet.</div>`;
+  if(upcoming){
+    html += `<div class="section-label">Next Game</div>`;
+    html += gameCardHtml(upcoming, team);
   }
 
-  sectionsEl.innerHTML = html;
+  html += `<div class="section-label">Recent Games</div>`;
+  if(recent.length){
+    html += recent.map(g=>gameCardHtml(g, team)).join('');
+  } else {
+    html += `<div class="empty">No recent games yet.</div>`;
+  }
+  if(!upcoming){
+    html += `<div class="season-note">Season complete for the ${team.name} — next game will show here once it's scheduled.</div>`;
+  }
 
+  const sectionsEl = document.getElementById('teamSections');
+  sectionsEl.innerHTML = html;
   sectionsEl.querySelectorAll('.game-row').forEach(row=>{
     row.addEventListener('click', ()=>{
       document.getElementById(`game-${row.dataset.id}`).classList.toggle('open');
     });
   });
+
+  document.getElementById('home-screen').classList.remove('active');
+  document.getElementById('team-screen').classList.add('active');
 }
 
-render();
+document.getElementById('backBtn').addEventListener('click', showHome);
+
+renderHome();
