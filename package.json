@@ -1,7 +1,7 @@
 {
-  "name": "the-hub",
+  "name": "beantown-hub",
   "version": "1.0.0",
-  "description": "The Hub — a simple scoreboard for Boston's MLB, NFL, NBA, and NHL teams.",
+  "description": "Beantown Hub — a simple scoreboard for Boston's MLB, NFL, NBA, and NHL teams.",
   "private": true,
   "scripts": {
     "dev": "live-server --port=8080"

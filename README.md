@@ -1,4 +1,4 @@
-# The Hub
+# Beantown Hub
 
 A simple scoreboard for Boston's four major pro teams — Red Sox (MLB), Patriots (NFL),
 Celtics (NBA), and Bruins (NHL) — all in one place. Use the tabs at the top to see all of
@@ -7,7 +7,7 @@ them or filter down to a single team.
 ## Project structure
 
 ```
-the-hub/
+beantown-hub/
 ├── index.html       # page structure
 ├── css/
 │   └── style.css    # all styling
