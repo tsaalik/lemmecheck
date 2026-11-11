@@ -1,13 +1,12 @@
 :root{
-  --bg-top:#0c2118;
-  --bg-bottom:#173a2b;
-  --card:#173226;
-  --card-border:#2b4a3a;
-  --chalk:#f4f1e6;
-  --muted:#8fa89a;
-  --amber:#f5a623;
+  --bg:#ffffff;
+  --card:#f5f5f5;
+  --card-border:#e0e0e0;
+  --ink:#1a1a1a;
+  --muted:#6b6b6b;
+  --amber:#b45309;
   --gold:#ffd447;
-  --foul:#e4572e;
+  --foul:#c0392b;
   --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Roboto Mono",monospace;
   --sans:"Helvetica Neue",Arial,sans-serif;
 }
@@ -15,8 +14,8 @@
 body{
   margin:0;
   padding:0;
-  background:linear-gradient(180deg,var(--bg-top),var(--bg-bottom) 60%);
-  color:var(--chalk);
+  background:var(--bg);
+  color:var(--ink);
   font-family:var(--sans);
   min-height:100vh;
 }
@@ -66,7 +65,7 @@ header h1{
 .launcher .name{
   font-weight:700;
   font-size:14px;
-  color:var(--chalk);
+  color:var(--ink);
   text-transform:uppercase;
   letter-spacing:0.5px;
 }
@@ -141,7 +140,7 @@ header h1{
   overflow:hidden;
   text-overflow:ellipsis;
 }
-.team-name.boston{color:var(--gold);}
+.team-name.boston{color:var(--amber);}
 .score{
   font-family:var(--mono);
   font-weight:700;
@@ -171,7 +170,7 @@ header h1{
   font-size:12px;color:var(--muted);margin:10px 0 6px;
 }
 .highlights ul{margin:0;padding-left:18px;}
-.highlights li{font-size:13px;color:var(--chalk);margin-bottom:4px;}
+.highlights li{font-size:13px;color:var(--ink);margin-bottom:4px;}
 .highlights .note{
   margin-top:8px;
   font-size:11px;
