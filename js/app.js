@@ -1,5 +1,4 @@
 // ---- Boston teams ----
-// Each code maps to exactly one Boston team, since that's all this app tracks.
 // `color` tints each team's launcher badge — a simple stand-in for a real logo.
 const TEAMS = [
   {code:"MLB", name:"Red Sox",   emoji:"⚾", color:"#bd3039"},
@@ -8,82 +7,91 @@ const TEAMS = [
   {code:"NHL", name:"Bruins",    emoji:"🏒", color:"#111111"},
 ];
 
-// ---- Sample data ----
-// Placeholder scores and schedule, listed oldest to newest per team.
-// In a real app this would come from a live sports API — see the README.
-const games = [
-  // Red Sox — regular season has wrapped up for the year
-  {id:"mlb1", code:"MLB", date:"Sep 24", opponent:"Yankees",  home:true,  teamScore:4, oppScore:2, status:"final"},
-  {id:"mlb2", code:"MLB", date:"Sep 28", opponent:"Orioles",  home:false, teamScore:3, oppScore:6, status:"final"},
+// The local backend (see server.js) that fetches real schedule data from
+// ESPN and a matching highlight video from YouTube — run it with `npm run api`.
+const API_BASE = "http://localhost:3001";
 
-  // Patriots — mid NFL season
-  {id:"nfl1", code:"NFL", date:"Oct 19", opponent:"Bills",    home:true,  teamScore:24, oppScore:20, status:"final"},
-  {id:"nfl2", code:"NFL", date:"Oct 25", opponent:"Jets",     home:false, teamScore:17, oppScore:27, status:"final"},
-  {id:"nfl3", code:"NFL", date:"Nov 1",  opponent:"Dolphins", home:true,  time:"1:00 PM", status:"scheduled"},
+function formatDate(iso){
+  return new Date(iso).toLocaleDateString('en-US', { month:'short', day:'numeric' });
+}
 
-  // Celtics — NBA season just tipped off
-  {id:"nba1", code:"NBA", date:"Oct 22", opponent:"Knicks",   home:true,  teamScore:112, oppScore:104, status:"final"},
-  {id:"nba2", code:"NBA", date:"Oct 25", opponent:"76ers",    home:false, teamScore:98,  oppScore:101, status:"final"},
-  {id:"nba3", code:"NBA", date:"Oct 29", opponent:"Heat",     home:true,  time:"7:30 PM", status:"scheduled"},
+function formatTime(iso){
+  return new Date(iso).toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' });
+}
 
-  // Bruins — NHL season underway
-  {id:"nhl1", code:"NHL", date:"Oct 23", opponent:"Rangers",      home:false, teamScore:3, oppScore:2, status:"final"},
-  {id:"nhl2", code:"NHL", date:"Oct 26", opponent:"Maple Leafs",  home:true,  teamScore:2, oppScore:4, status:"final"},
-  {id:"nhl3", code:"NHL", date:"Oct 30", opponent:"Canadiens",    home:false, time:"7:00 PM", status:"scheduled"},
-];
+async function fetchSchedule(code){
+  const res = await fetch(`${API_BASE}/api/schedule?code=${code}`);
+  if(!res.ok) throw new Error('schedule request failed');
+  return res.json();
+}
 
-function mockHighlights(g, teamName){
-  if(g.status !== 'final') return null;
-  const diff = Math.abs(g.teamScore - g.oppScore);
-  const won = g.teamScore > g.oppScore;
-  const leader = won ? teamName : g.opponent;
-  const bullets = [];
-  if(diff >= 8) bullets.push(`${leader} pulled away early and never looked back.`);
-  else if(diff <= 1) bullets.push(`Tight one — decided late.`);
-  else bullets.push(`${leader} took control in the middle of the game.`);
-  const us = g.home ? teamName : g.opponent;
-  const them = g.home ? g.opponent : teamName;
-  const usScore = g.home ? g.teamScore : g.oppScore;
-  const themScore = g.home ? g.oppScore : g.teamScore;
-  bullets.push(`Final: ${us} ${usScore} — ${them} ${themScore}`);
-  return bullets;
+async function fetchHighlight(team, game){
+  const params = new URLSearchParams({
+    team: team.name,
+    opponent: game.opponent,
+    date: game.dateISO,
+  });
+  const res = await fetch(`${API_BASE}/api/highlights?${params}`);
+  if(!res.ok) throw new Error('highlights request failed');
+  return res.json();
 }
 
 function gameCardHtml(g, team){
-  const hl = mockHighlights(g, team.name);
   // Always show the away team on top, home team on the bottom — Boston's
-  // row gets the gold highlight no matter which side it's on.
+  // row gets the highlight color no matter which side it's on.
   const awayLabel = g.home ? g.opponent : team.name;
   const homeLabel = g.home ? team.name : g.opponent;
   const awayScore = g.home ? g.oppScore : g.teamScore;
   const homeScore = g.home ? g.teamScore : g.oppScore;
+
+  let statusHtml;
+  if(g.status === 'final') statusHtml = `FINAL · ${formatDate(g.dateISO)}`;
+  else if(g.status === 'live') statusHtml = `LIVE`;
+  else statusHtml = `${formatDate(g.dateISO)} · ${formatTime(g.dateISO)}`;
+
   return `
   <div class="game" id="game-${g.id}">
     <div class="game-row" data-id="${g.id}">
       <div class="matchup">
         <div class="team">
           <span class="team-name ${!g.home ? 'boston' : ''}">${awayLabel}</span>
-          ${g.status==='final' ? `<span class="score">${awayScore}</span>` : ''}
+          ${g.status!=='scheduled' && awayScore!==null ? `<span class="score">${awayScore}</span>` : ''}
         </div>
         <div class="team">
           <span class="team-name ${g.home ? 'boston' : ''}">${homeLabel}</span>
-          ${g.status==='final' ? `<span class="score">${homeScore}</span>` : ''}
+          ${g.status!=='scheduled' && homeScore!==null ? `<span class="score">${homeScore}</span>` : ''}
         </div>
       </div>
-      <div class="status ${g.status==='final'?'final':''}">${g.status==='final' ? 'FINAL' : g.time}</div>
+      <div class="status ${g.status}">${statusHtml}</div>
       <div class="chev">▶</div>
     </div>
-    ${g.status==='final' ? `
-    <div class="highlights">
+    <div class="highlights" id="hl-${g.id}">
       <p>Highlights</p>
-      <ul>${hl.map(h=>`<li>${h}</li>`).join('')}</ul>
-      <div class="note">These highlight lines are placeholders — swap in a real sports-highlights API to show actual clips and plays.</div>
-    </div>` : `
-    <div class="highlights">
-      <p>Highlights</p>
-      <div class="note">Game hasn't started yet — highlights will appear here once it's final.</div>
-    </div>`}
+      ${g.status === 'final'
+        ? `<div class="note">Tap to load highlights…</div>`
+        : `<div class="note">Game hasn't finished yet — highlights will appear here once it's final.</div>`}
+    </div>
   </div>`;
+}
+
+async function loadHighlightsInto(gameEl, team, game){
+  const body = gameEl.querySelector(`#hl-${game.id}`);
+  body.innerHTML = `<p>Highlights</p><div class="note">Loading highlights…</div>`;
+  try{
+    const result = await fetchHighlight(team, game);
+    if(result.available){
+      body.innerHTML = `
+        <p>Highlights</p>
+        <div class="video-embed">
+          <iframe src="https://www.youtube.com/embed/${result.videoId}" allowfullscreen></iframe>
+        </div>
+        <div class="note">${result.title}</div>`;
+    } else {
+      body.innerHTML = `<p>Highlights</p><div class="note">No highlight video found for this game yet.</div>`;
+    }
+  }catch(e){
+    body.innerHTML = `<p>Highlights</p><div class="note">Couldn't reach the local API server — make sure "npm run api" is running in a separate terminal.</div>`;
+  }
 }
 
 function renderHome(){
@@ -104,7 +112,7 @@ function showHome(){
   document.getElementById('team-screen').classList.remove('active');
 }
 
-function showTeam(code){
+async function showTeam(code){
   const team = TEAMS.find(t=>t.code===code);
   document.getElementById('teamHeader').innerHTML = `
     <div class="team-header">
@@ -112,14 +120,28 @@ function showTeam(code){
       <h2>${team.name}</h2>
     </div>`;
 
-  const teamGames = games.filter(g=>g.code===code);
-  const upcoming = teamGames.find(g=>g.status==='scheduled');
+  const sectionsEl = document.getElementById('teamSections');
+  sectionsEl.innerHTML = `<div class="empty">Loading schedule…</div>`;
+
+  document.getElementById('home-screen').classList.remove('active');
+  document.getElementById('team-screen').classList.add('active');
+
+  let teamGames;
+  try{
+    teamGames = await fetchSchedule(code);
+  }catch(e){
+    sectionsEl.innerHTML = `<div class="empty">Couldn't reach the local API server — make sure "npm run api" is running in a separate terminal.</div>`;
+    return;
+  }
+
+  const sorted = teamGames.slice().sort((a,b)=> new Date(a.dateISO) - new Date(b.dateISO));
+  const upcoming = sorted.find(g=>g.status==='scheduled' || g.status==='live');
   // Most recent result first.
-  const recent = teamGames.filter(g=>g.status==='final').slice().reverse();
+  const recent = sorted.filter(g=>g.status==='final').reverse().slice(0,5);
 
   let html = '';
   if(upcoming){
-    html += `<div class="section-label">Next Game</div>`;
+    html += `<div class="section-label">${upcoming.status==='live' ? 'Live Now' : 'Next Game'}</div>`;
     html += gameCardHtml(upcoming, team);
   }
 
@@ -133,16 +155,23 @@ function showTeam(code){
     html += `<div class="season-note">Season complete for the ${team.name} — next game will show here once it's scheduled.</div>`;
   }
 
-  const sectionsEl = document.getElementById('teamSections');
   sectionsEl.innerHTML = html;
+
+  const byId = {};
+  [upcoming, ...recent].filter(Boolean).forEach(g => byId[g.id] = g);
+
   sectionsEl.querySelectorAll('.game-row').forEach(row=>{
     row.addEventListener('click', ()=>{
-      document.getElementById(`game-${row.dataset.id}`).classList.toggle('open');
+      const gameEl = document.getElementById(`game-${row.dataset.id}`);
+      const wasOpen = gameEl.classList.contains('open');
+      gameEl.classList.toggle('open');
+      const game = byId[row.dataset.id];
+      if(!wasOpen && game.status === 'final' && !gameEl.dataset.loaded){
+        gameEl.dataset.loaded = 'true';
+        loadHighlightsInto(gameEl, team, game);
+      }
     });
   });
-
-  document.getElementById('home-screen').classList.remove('active');
-  document.getElementById('team-screen').classList.add('active');
 }
 
 document.getElementById('backBtn').addEventListener('click', showHome);
