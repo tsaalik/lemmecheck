@@ -100,11 +100,13 @@ async function fetchRecap(code, eventId) {
   const res = await fetch(url);
   const data = await res.json();
 
+  const teamNames = buildTeamNameMap(data);
+
   const keyPlays = extractKeyPlays(data.plays);
   if (keyPlays) {
-    return { type: 'plays', plays: keyPlays.map(p => p.text) };
+    return { type: 'plays', plays: keyPlays.map(p => labelPlay(p, teamNames)) };
   }
-  const topPerformers = extractTopPerformers(data.leaders);
+  const topPerformers = extractTopPerformers(data.leaders, teamNames);
   if (topPerformers) {
     return { type: 'performers', plays: topPerformers };
   }
@@ -114,19 +116,38 @@ async function fetchRecap(code, eventId) {
   return { type: 'none' };
 }
 
+// Maps each team's ESPN id (e.g. "2") to its short name (e.g. "Red Sox"), so
+// a play or stat line that only carries a team id can be labeled by name.
+// Both `plays[].team.id` and `leaders[].team.id` use this same id scheme.
+function buildTeamNameMap(data) {
+  const map = {};
+  const competitors = data.header && data.header.competitions && data.header.competitions[0]
+    ? data.header.competitions[0].competitors : [];
+  competitors.forEach(c => { map[c.team.id] = c.team.name; });
+  return map;
+}
+
+// A play's `team` field is just an id (e.g. {"id":"2"}) with no name — label
+// it so it's clear which team actually made the play, not just who's in it.
+function labelPlay(play, teamNames) {
+  const name = play.team && teamNames[play.team.id];
+  return name ? `${name}: ${play.text}` : play.text;
+}
+
 // Takes each team's first few stat-leader categories (ESPN already orders
 // these by relevance — passing/rushing/receiving before sacks/tackles for
 // NFL, points before assists for NBA, etc.) and turns the top name in each
-// into a plain-language stat line.
-function extractTopPerformers(leadersData, maxItems = 5) {
+// into a plain-language stat line, labeled with the team's short name.
+function extractTopPerformers(leadersData, teamNames, maxItems = 5) {
   if (!leadersData || !leadersData.length) return null;
 
   const bullets = [];
   leadersData.forEach(teamLeaders => {
+    const name = teamNames[teamLeaders.team.id] || teamLeaders.team.displayName;
     teamLeaders.leaders.slice(0, 3).forEach(category => {
       const top = category.leaders && category.leaders[0];
       if (!top) return;
-      bullets.push(`${top.athlete.displayName} (${teamLeaders.team.displayName}): ${top.displayValue}`);
+      bullets.push(`${top.athlete.displayName} (${name}): ${top.displayValue}`);
     });
   });
   return bullets.length ? bullets.slice(0, maxItems) : null;
