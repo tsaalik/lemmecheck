@@ -101,18 +101,16 @@ async function fetchRecap(code, eventId) {
   const data = await res.json();
 
   const teamNames = buildTeamNameMap(data);
+  const finalScore = buildFinalScoreLine(data);
+  const winner = winnerTeamName(data);
 
-  const keyPlays = extractKeyPlays(data.plays);
-  if (keyPlays) {
-    return { type: 'plays', plays: keyPlays.map(p => labelPlay(p, teamNames)) };
+  const items = extractKeyPlays(data.plays, teamNames) || extractKeyPlaysFromDrives(data.drives);
+  if (items) {
+    return { type: 'plays', finalScore, groups: groupByTeam(items, winner) };
   }
-  const driveKeyPlays = extractKeyPlaysFromDrives(data.drives);
-  if (driveKeyPlays) {
-    return { type: 'plays', plays: driveKeyPlays };
-  }
-  const topPerformers = extractTopPerformers(data.leaders, teamNames);
-  if (topPerformers) {
-    return { type: 'performers', plays: topPerformers };
+  const performerItems = extractTopPerformers(data.leaders, teamNames);
+  if (performerItems) {
+    return { type: 'performers', finalScore, groups: groupByTeam(performerItems, winner) };
   }
   if (data.article && data.article.description) {
     return { type: 'article', headline: data.article.headline, description: data.article.description };
@@ -120,11 +118,44 @@ async function fetchRecap(code, eventId) {
   return { type: 'none' };
 }
 
+// Groups a flat list of {team, text} items into [{team, plays}], ordered
+// with the winning team's group first (matching the "Final Score: X
+// defeated Y" line above it), each team's own items kept in their given
+// order otherwise.
+function groupByTeam(items, winner) {
+  const order = [];
+  const byTeam = {};
+  items.forEach(({ team, text }) => {
+    if (!byTeam[team]) { byTeam[team] = []; order.push(team); }
+    byTeam[team].push(text);
+  });
+  order.sort((a, b) => (a === winner ? -1 : b === winner ? 1 : 0));
+  return order.map(team => ({ team, plays: byTeam[team] }));
+}
+
+function winnerTeamName(data) {
+  const competitors = data.header && data.header.competitions && data.header.competitions[0]
+    ? data.header.competitions[0].competitors : [];
+  const winner = competitors.find(c => c.winner);
+  return winner ? winner.team.name : null;
+}
+
+function buildFinalScoreLine(data) {
+  const competitors = data.header && data.header.competitions && data.header.competitions[0]
+    ? data.header.competitions[0].competitors : [];
+  if (competitors.length < 2) return null;
+  const winner = competitors.find(c => c.winner) || competitors[0];
+  const loser = competitors.find(c => c !== winner);
+  return `${winner.team.name} defeated the ${loser.team.name} ${winner.score}-${loser.score}.`;
+}
+
 // NFL-specific: scoring plays nested under drives.previous[].plays, each
 // drive already labeled with its own team. There's no scoreValue field here
 // like the other sports have, so point values are inferred from the score
 // type (touchdown/field goal/safety) for the same "biggest, then most
-// recent" ranking extractKeyPlays uses.
+// recent" ranking extractKeyPlays uses. The raw text is broadcast-transcript
+// style ("(Shotgun) D.Maye pass... Center-J.Ashby, Holder-M.Wishnowsky. **
+// Injury Update: ...") so it's cleaned up before use.
 const NFL_SCORE_VALUES = { touchdown: 6, fieldgoal: 3, safety: 2 };
 
 function extractKeyPlaysFromDrives(drivesData, maxPlays = 5) {
@@ -136,7 +167,7 @@ function extractKeyPlaysFromDrives(drivesData, maxPlays = 5) {
       if (!play.scoringPlay || !play.text) return;
       const scoreTypeName = play.scoringType && play.scoringType.name;
       scoring.push({
-        text: play.text,
+        text: cleanPlayText(play.text),
         team: drive.team.name,
         wallclock: play.wallclock,
         value: NFL_SCORE_VALUES[scoreTypeName] || 1,
@@ -146,7 +177,31 @@ function extractKeyPlaysFromDrives(drivesData, maxPlays = 5) {
   if (!scoring.length) return null;
 
   scoring.sort((a, b) => b.value - a.value || new Date(b.wallclock) - new Date(a.wallclock));
-  return scoring.slice(0, maxPlays).map(p => `${p.team}: ${p.text}`);
+  return scoring.slice(0, maxPlays).map(({ team, text }) => ({ team, text }));
+}
+
+// Strips broadcast-transcript clutter that doesn't help a casual reader:
+// formation calls ("(Shotgun)"), injury asides, and the holder/center
+// footnote on every kick. Simplifies the extra-point / two-point-conversion
+// outcome down to one short clause instead of the full play-by-play of it.
+function cleanPlayText(text) {
+  let sentences = text.split(/(?<=\.)\s+/).filter(s =>
+    !/injury update/i.test(s) &&
+    !/was injured during the play/i.test(s) &&
+    !/Center-\S+,?\s*Holder-\S+/i.test(s)
+  );
+  if (sentences.length) {
+    sentences[0] = sentences[0].replace(/^\([^)]*\)\s*/, '');
+  }
+  sentences = sentences.map(s => {
+    if (/extra point is good/i.test(s)) return 'Extra point good.';
+    if (/extra point is no good/i.test(s)) return 'Extra point missed.';
+    if (/two-point conversion attempt/i.test(s)) return null;
+    if (/attempt succeeds/i.test(s)) return 'Two-point conversion good.';
+    if (/attempt fails/i.test(s)) return 'Two-point conversion failed.';
+    return s;
+  }).filter(Boolean);
+  return sentences.join(' ').trim();
 }
 
 // Maps each team's ESPN id (e.g. "2") to its short name (e.g. "Red Sox"), so
@@ -160,30 +215,23 @@ function buildTeamNameMap(data) {
   return map;
 }
 
-// A play's `team` field is just an id (e.g. {"id":"2"}) with no name — label
-// it so it's clear which team actually made the play, not just who's in it.
-function labelPlay(play, teamNames) {
-  const name = play.team && teamNames[play.team.id];
-  return name ? `${name}: ${play.text}` : play.text;
-}
-
 // Takes each team's first few stat-leader categories (ESPN already orders
 // these by relevance — passing/rushing/receiving before sacks/tackles for
 // NFL, points before assists for NBA, etc.) and turns the top name in each
-// into a plain-language stat line, labeled with the team's short name.
-function extractTopPerformers(leadersData, teamNames, maxItems = 5) {
+// into a plain-language stat line.
+function extractTopPerformers(leadersData, teamNames, maxPerTeam = 3) {
   if (!leadersData || !leadersData.length) return null;
 
-  const bullets = [];
+  const items = [];
   leadersData.forEach(teamLeaders => {
     const name = teamNames[teamLeaders.team.id] || teamLeaders.team.displayName;
-    teamLeaders.leaders.slice(0, 3).forEach(category => {
+    teamLeaders.leaders.slice(0, maxPerTeam).forEach(category => {
       const top = category.leaders && category.leaders[0];
       if (!top) return;
-      bullets.push(`${top.athlete.displayName} (${name}): ${top.displayValue}`);
+      items.push({ team: name, text: `${top.athlete.displayName}: ${top.displayValue}` });
     });
   });
-  return bullets.length ? bullets.slice(0, maxItems) : null;
+  return items.length ? items : null;
 }
 
 // Picks the biggest scoring plays (3-pointers before 2-pointers, multi-run
@@ -194,14 +242,17 @@ function extractTopPerformers(leadersData, teamNames, maxItems = 5) {
 // (MLB's isn't aligned with its play list, NHL's isn't provided at all) —
 // but it's an honest, simple signal that works the same way everywhere
 // play data exists at all.
-function extractKeyPlays(playsData, maxPlays = 5) {
+function extractKeyPlays(playsData, teamNames, maxPlays = 5) {
   const scoring = (playsData || []).filter(p => p.scoringPlay && p.text);
   if (!scoring.length) return null;
 
   const ranked = scoring.slice().sort((a, b) =>
     (b.scoreValue || 0) - (a.scoreValue || 0) || new Date(b.wallclock) - new Date(a.wallclock)
   );
-  return ranked.slice(0, maxPlays);
+  return ranked.slice(0, maxPlays).map(p => ({
+    team: (p.team && teamNames[p.team.id]) || 'Unknown',
+    text: p.text,
+  }));
 }
 
 // ---- Highlight-video matching ----

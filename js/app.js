@@ -54,15 +54,15 @@ async function fetchRecap(team, game){
 }
 
 function recapHtml(recap, game, team){
-  if(recap.type === 'plays'){
-    return `
-      <p class="key-plays-label">Key Plays</p>
-      <ul class="key-plays">${recap.plays.map(p=>`<li>${p}</li>`).join('')}</ul>`;
-  }
-  if(recap.type === 'performers'){
-    return `
-      <p class="key-plays-label">Top Performers</p>
-      <ul class="key-plays">${recap.plays.map(p=>`<li>${p}</li>`).join('')}</ul>`;
+  if(recap.type === 'plays' || recap.type === 'performers'){
+    const label = recap.type === 'plays' ? 'Key Plays' : 'Top Performers';
+    const finalScoreHtml = recap.finalScore
+      ? `<p class="final-score"><strong>Final Score:</strong> ${recap.finalScore}</p>` : '';
+    const groupsHtml = recap.groups.map(g => `
+      <p class="team-group-label">${g.team}</p>
+      <ul class="key-plays">${g.plays.map(p=>`<li>${p}</li>`).join('')}</ul>
+    `).join('');
+    return `<p class="key-plays-label">${label}</p>${finalScoreHtml}${groupsHtml}`;
   }
   if(recap.type === 'article'){
     return `<p class="summary"><strong>${recap.headline}</strong><br>${recap.description}</p>`;

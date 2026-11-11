@@ -187,6 +187,21 @@ header h1{
 }
 .highlights .key-plays-label{margin-top:10px;}
 .highlights .key-plays li{font-size:13px;}
+.highlights .final-score{
+  margin-top:8px;
+  font-size:13px;
+  color:var(--ink);
+  font-style:normal;
+}
+.highlights .team-group-label{
+  margin-top:12px;
+  margin-bottom:2px;
+  font-size:13px;
+  font-weight:700;
+  color:var(--amber);
+  text-transform:none;
+  letter-spacing:normal;
+}
 
 .empty{
   text-align:center;color:var(--muted);
