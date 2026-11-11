@@ -85,7 +85,8 @@ async function loadHighlightsInto(gameEl, team, game){
         <div class="video-embed">
           <iframe src="https://www.youtube.com/embed/${result.videoId}" allowfullscreen></iframe>
         </div>
-        <div class="note">${result.title}</div>`;
+        <div class="note">${result.title}</div>
+        <a class="watch-link" href="https://www.youtube.com/watch?v=${result.videoId}" target="_blank" rel="noopener">Watch on YouTube ↗</a>`;
     } else {
       body.innerHTML = `<p>Highlights</p><div class="note">No highlight video found for this game yet.</div>`;
     }
