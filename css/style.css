@@ -185,6 +185,8 @@ header h1{
   color:var(--ink);
   font-style:normal;
 }
+.highlights .key-plays-label{margin-top:10px;}
+.highlights .key-plays li{font-size:13px;}
 
 .empty{
   text-align:center;color:var(--muted);

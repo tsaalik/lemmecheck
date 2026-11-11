@@ -1,7 +1,9 @@
 // Tiny local backend for Beantown Hub.
 //
-// It does two things, both so the frontend never needs a secret key:
+// It does three things, all so the frontend never needs a secret key:
 //   GET /api/schedule?code=MLB         real schedule/scores from ESPN (no key needed)
+//   GET /api/recap?code=MLB&eventId=.. a few real key plays (or an article recap) for
+//                                       one game, from ESPN (no key needed)
 //   GET /api/highlights?sport=...&team=...&opponent=...&date=...
 //                                       a matching YouTube highlight video, if one
 //                                       can be found with confidence — this needs
@@ -76,6 +78,49 @@ function normalizeSchedule(data, team) {
       status,
     };
   });
+}
+
+// ---- Game recap (key plays, or an article fallback) ----
+// ESPN's play-by-play data is inconsistent across sports via this endpoint:
+// confirmed present for MLB/NBA/NHL, but reliably empty for NFL even though
+// the game itself has a boxscore. So this falls back to the AP article
+// recap (also present for all four sports) when no plays are available,
+// rather than showing nothing.
+
+async function fetchRecap(code, eventId) {
+  const team = TEAMS[code];
+  if (!team) return { type: 'none' };
+
+  const url = `https://site.api.espn.com/apis/site/v2/sports/${team.espnSport}/${team.espnLeague}/summary?event=${eventId}`;
+  const res = await fetch(url);
+  const data = await res.json();
+
+  const keyPlays = extractKeyPlays(data.plays);
+  if (keyPlays) {
+    return { type: 'plays', plays: keyPlays.map(p => p.text) };
+  }
+  if (data.article && data.article.description) {
+    return { type: 'article', headline: data.article.headline, description: data.article.description };
+  }
+  return { type: 'none' };
+}
+
+// Picks the biggest scoring plays (3-pointers before 2-pointers, multi-run
+// innings before single-run ones, etc.), breaking ties toward whichever
+// happened later in the game. Not the same as "the plays that actually
+// decided the game" — win-probability data that would support that more
+// rigorous definition isn't reliably available across all four sports
+// (MLB's isn't aligned with its play list, NHL's isn't provided at all) —
+// but it's an honest, simple signal that works the same way everywhere
+// play data exists at all.
+function extractKeyPlays(playsData, maxPlays = 5) {
+  const scoring = (playsData || []).filter(p => p.scoringPlay && p.text);
+  if (!scoring.length) return null;
+
+  const ranked = scoring.slice().sort((a, b) =>
+    (b.scoreValue || 0) - (a.scoreValue || 0) || new Date(b.wallclock) - new Date(a.wallclock)
+  );
+  return ranked.slice(0, maxPlays);
 }
 
 // ---- Highlight-video matching ----
@@ -177,6 +222,10 @@ const server = http.createServer(async (req, res) => {
       const games = await fetchSchedule(url.searchParams.get('code'));
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(games));
+    } else if (url.pathname === '/api/recap') {
+      const recap = await fetchRecap(url.searchParams.get('code'), url.searchParams.get('eventId'));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(recap));
     } else if (url.pathname === '/api/highlights') {
       const team = url.searchParams.get('team');
       const opponent = url.searchParams.get('opponent');

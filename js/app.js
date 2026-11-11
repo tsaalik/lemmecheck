@@ -46,6 +46,25 @@ async function fetchHighlight(team, game){
   return res.json();
 }
 
+async function fetchRecap(team, game){
+  const params = new URLSearchParams({ code: team.code, eventId: game.id });
+  const res = await fetch(`${API_BASE}/api/recap?${params}`);
+  if(!res.ok) throw new Error('recap request failed');
+  return res.json();
+}
+
+function recapHtml(recap, game, team){
+  if(recap.type === 'plays'){
+    return `
+      <p class="key-plays-label">Key Plays</p>
+      <ul class="key-plays">${recap.plays.map(p=>`<li>${p}</li>`).join('')}</ul>`;
+  }
+  if(recap.type === 'article'){
+    return `<p class="summary">${recap.description}</p>`;
+  }
+  return `<p class="summary">${summarizeGame(game, team)}</p>`;
+}
+
 function gameCardHtml(g, team){
   // Always show the away team on top, home team on the bottom — Boston's
   // row gets the highlight color no matter which side it's on.
@@ -88,8 +107,11 @@ async function loadHighlightsInto(gameEl, team, game){
   const body = gameEl.querySelector(`#hl-${game.id}`);
   body.innerHTML = `<p>Highlights</p><div class="note">Loading highlights…</div>`;
   try{
-    const result = await fetchHighlight(team, game);
-    const summary = `<p class="summary">${summarizeGame(game, team)}</p>`;
+    const [result, recap] = await Promise.all([
+      fetchHighlight(team, game),
+      fetchRecap(team, game),
+    ]);
+    const recapSection = recapHtml(recap, game, team);
     if(result.available){
       body.innerHTML = `
         <p>Highlights</p>
@@ -98,9 +120,9 @@ async function loadHighlightsInto(gameEl, team, game){
         </div>
         <div class="note">${result.title}</div>
         <a class="watch-link" href="https://www.youtube.com/watch?v=${result.videoId}" target="_blank" rel="noopener">Watch on YouTube ↗</a>
-        ${summary}`;
+        ${recapSection}`;
     } else {
-      body.innerHTML = `<p>Highlights</p><div class="note">No highlight video found for this game yet.</div>${summary}`;
+      body.innerHTML = `<p>Highlights</p><div class="note">No highlight video found for this game yet.</div>${recapSection}`;
     }
   }catch(e){
     body.innerHTML = `<p>Highlights</p><div class="note">Couldn't reach the local API server — make sure "npm run api" is running in a separate terminal.</div>`;
