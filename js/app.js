@@ -19,6 +19,16 @@ function formatTime(iso){
   return new Date(iso).toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' });
 }
 
+function summarizeGame(g, team){
+  const won = g.teamScore > g.oppScore;
+  const winnerScore = Math.max(g.teamScore, g.oppScore);
+  const loserScore = Math.min(g.teamScore, g.oppScore);
+  const location = g.home ? 'at home' : 'on the road';
+  return won
+    ? `The ${team.name} beat the ${g.opponent} ${winnerScore}-${loserScore} ${location}.`
+    : `The ${team.name} fell to the ${g.opponent} ${loserScore}-${winnerScore} ${location}.`;
+}
+
 async function fetchSchedule(code){
   const res = await fetch(`${API_BASE}/api/schedule?code=${code}`);
   if(!res.ok) throw new Error('schedule request failed');
@@ -79,6 +89,7 @@ async function loadHighlightsInto(gameEl, team, game){
   body.innerHTML = `<p>Highlights</p><div class="note">Loading highlights…</div>`;
   try{
     const result = await fetchHighlight(team, game);
+    const summary = `<p class="summary">${summarizeGame(game, team)}</p>`;
     if(result.available){
       body.innerHTML = `
         <p>Highlights</p>
@@ -86,9 +97,10 @@ async function loadHighlightsInto(gameEl, team, game){
           <iframe src="https://www.youtube.com/embed/${result.videoId}" allowfullscreen></iframe>
         </div>
         <div class="note">${result.title}</div>
-        <a class="watch-link" href="https://www.youtube.com/watch?v=${result.videoId}" target="_blank" rel="noopener">Watch on YouTube ↗</a>`;
+        <a class="watch-link" href="https://www.youtube.com/watch?v=${result.videoId}" target="_blank" rel="noopener">Watch on YouTube ↗</a>
+        ${summary}`;
     } else {
-      body.innerHTML = `<p>Highlights</p><div class="note">No highlight video found for this game yet.</div>`;
+      body.innerHTML = `<p>Highlights</p><div class="note">No highlight video found for this game yet.</div>${summary}`;
     }
   }catch(e){
     body.innerHTML = `<p>Highlights</p><div class="note">Couldn't reach the local API server — make sure "npm run api" is running in a separate terminal.</div>`;

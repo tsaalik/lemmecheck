@@ -179,6 +179,12 @@ header h1{
   color:var(--muted);
   font-style:italic;
 }
+.highlights .summary{
+  margin-top:10px;
+  font-size:13px;
+  color:var(--ink);
+  font-style:normal;
+}
 
 .empty{
   text-align:center;color:var(--muted);
