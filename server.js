@@ -81,16 +81,16 @@ function normalizeSchedule(data, team) {
 }
 
 // ---- Game recap (key plays, then stat leaders, then an article, in order) ----
-// ESPN's play-by-play data is inconsistent across sports via this endpoint:
-// confirmed present for MLB/NBA/NHL, but reliably empty for NFL even though
-// the game itself has a boxscore. For NFL, `leaders` (real per-team stat
-// leaders — passing/rushing/receiving yards, points, goals, etc., depending
-// on sport) is populated instead, so that's the next thing tried. Only if
-// neither is available does this fall back to the AP article recap, which
-// turned out to be a weak summary on its own: `description` is often just a
-// scene-setting opening line ("If Jordan Love has played a better game than
-// he did on Sunday, he can't remember it.") with no actual facts, so the
-// `headline` (which does state facts) is included too.
+// ESPN's play-by-play lives in different places depending on sport: a flat
+// top-level `plays` array for MLB/NBA/NHL, but nested under `drives` for NFL
+// (each drive already carries which team had the ball, so no id-lookup is
+// needed there). If genuinely neither is available, this falls back to
+// `leaders` (real per-team stat leaders), and only as a last resort to the
+// AP article recap, which turned out to be a weak summary on its own:
+// `description` is often just a scene-setting opening line ("If Jordan Love
+// has played a better game than he did on Sunday, he can't remember it.")
+// with no actual facts, so the `headline` (which does state facts) is
+// included too.
 
 async function fetchRecap(code, eventId) {
   const team = TEAMS[code];
@@ -106,6 +106,10 @@ async function fetchRecap(code, eventId) {
   if (keyPlays) {
     return { type: 'plays', plays: keyPlays.map(p => labelPlay(p, teamNames)) };
   }
+  const driveKeyPlays = extractKeyPlaysFromDrives(data.drives);
+  if (driveKeyPlays) {
+    return { type: 'plays', plays: driveKeyPlays };
+  }
   const topPerformers = extractTopPerformers(data.leaders, teamNames);
   if (topPerformers) {
     return { type: 'performers', plays: topPerformers };
@@ -114,6 +118,35 @@ async function fetchRecap(code, eventId) {
     return { type: 'article', headline: data.article.headline, description: data.article.description };
   }
   return { type: 'none' };
+}
+
+// NFL-specific: scoring plays nested under drives.previous[].plays, each
+// drive already labeled with its own team. There's no scoreValue field here
+// like the other sports have, so point values are inferred from the score
+// type (touchdown/field goal/safety) for the same "biggest, then most
+// recent" ranking extractKeyPlays uses.
+const NFL_SCORE_VALUES = { touchdown: 6, fieldgoal: 3, safety: 2 };
+
+function extractKeyPlaysFromDrives(drivesData, maxPlays = 5) {
+  if (!drivesData || !drivesData.previous) return null;
+
+  const scoring = [];
+  drivesData.previous.forEach(drive => {
+    (drive.plays || []).forEach(play => {
+      if (!play.scoringPlay || !play.text) return;
+      const scoreTypeName = play.scoringType && play.scoringType.name;
+      scoring.push({
+        text: play.text,
+        team: drive.team.name,
+        wallclock: play.wallclock,
+        value: NFL_SCORE_VALUES[scoreTypeName] || 1,
+      });
+    });
+  });
+  if (!scoring.length) return null;
+
+  scoring.sort((a, b) => b.value - a.value || new Date(b.wallclock) - new Date(a.wallclock));
+  return scoring.slice(0, maxPlays).map(p => `${p.team}: ${p.text}`);
 }
 
 // Maps each team's ESPN id (e.g. "2") to its short name (e.g. "Red Sox"), so
