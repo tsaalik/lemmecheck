@@ -80,12 +80,17 @@ function normalizeSchedule(data, team) {
   });
 }
 
-// ---- Game recap (key plays, or an article fallback) ----
+// ---- Game recap (key plays, then stat leaders, then an article, in order) ----
 // ESPN's play-by-play data is inconsistent across sports via this endpoint:
 // confirmed present for MLB/NBA/NHL, but reliably empty for NFL even though
-// the game itself has a boxscore. So this falls back to the AP article
-// recap (also present for all four sports) when no plays are available,
-// rather than showing nothing.
+// the game itself has a boxscore. For NFL, `leaders` (real per-team stat
+// leaders — passing/rushing/receiving yards, points, goals, etc., depending
+// on sport) is populated instead, so that's the next thing tried. Only if
+// neither is available does this fall back to the AP article recap, which
+// turned out to be a weak summary on its own: `description` is often just a
+// scene-setting opening line ("If Jordan Love has played a better game than
+// he did on Sunday, he can't remember it.") with no actual facts, so the
+// `headline` (which does state facts) is included too.
 
 async function fetchRecap(code, eventId) {
   const team = TEAMS[code];
@@ -99,10 +104,32 @@ async function fetchRecap(code, eventId) {
   if (keyPlays) {
     return { type: 'plays', plays: keyPlays.map(p => p.text) };
   }
+  const topPerformers = extractTopPerformers(data.leaders);
+  if (topPerformers) {
+    return { type: 'performers', plays: topPerformers };
+  }
   if (data.article && data.article.description) {
     return { type: 'article', headline: data.article.headline, description: data.article.description };
   }
   return { type: 'none' };
+}
+
+// Takes each team's first few stat-leader categories (ESPN already orders
+// these by relevance — passing/rushing/receiving before sacks/tackles for
+// NFL, points before assists for NBA, etc.) and turns the top name in each
+// into a plain-language stat line.
+function extractTopPerformers(leadersData, maxItems = 5) {
+  if (!leadersData || !leadersData.length) return null;
+
+  const bullets = [];
+  leadersData.forEach(teamLeaders => {
+    teamLeaders.leaders.slice(0, 3).forEach(category => {
+      const top = category.leaders && category.leaders[0];
+      if (!top) return;
+      bullets.push(`${top.athlete.displayName} (${teamLeaders.team.displayName}): ${top.displayValue}`);
+    });
+  });
+  return bullets.length ? bullets.slice(0, maxItems) : null;
 }
 
 // Picks the biggest scoring plays (3-pointers before 2-pointers, multi-run

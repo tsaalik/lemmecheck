@@ -59,8 +59,13 @@ function recapHtml(recap, game, team){
       <p class="key-plays-label">Key Plays</p>
       <ul class="key-plays">${recap.plays.map(p=>`<li>${p}</li>`).join('')}</ul>`;
   }
+  if(recap.type === 'performers'){
+    return `
+      <p class="key-plays-label">Top Performers</p>
+      <ul class="key-plays">${recap.plays.map(p=>`<li>${p}</li>`).join('')}</ul>`;
+  }
   if(recap.type === 'article'){
-    return `<p class="summary">${recap.description}</p>`;
+    return `<p class="summary"><strong>${recap.headline}</strong><br>${recap.description}</p>`;
   }
   return `<p class="summary">${summarizeGame(game, team)}</p>`;
 }
