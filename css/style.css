@@ -40,6 +40,36 @@ header h1{
 .screen{display:none;}
 .screen.active{display:block;}
 
+.ticker{
+  overflow:hidden;
+  background:#111111;
+  margin:0 -16px;
+  padding:9px 0;
+}
+.ticker-track{
+  display:inline-flex;
+  white-space:nowrap;
+  animation:ticker-scroll 28s linear infinite;
+}
+.ticker-track.paused{animation-play-state:paused;}
+.ticker-item{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  color:#ffffff;
+  font-size:13px;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:0.3px;
+  padding:0 28px;
+  white-space:nowrap;
+}
+.ticker-item .live-dot{color:#ff4d4d;}
+@keyframes ticker-scroll{
+  from{transform:translateX(0);}
+  to{transform:translateX(-50%);}
+}
+
 .launcher-grid{
   display:grid;
   grid-template-columns:repeat(2,1fr);

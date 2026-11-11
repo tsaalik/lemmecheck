@@ -152,6 +152,47 @@ function showHome(){
   document.getElementById('team-screen').classList.remove('active');
 }
 
+// One line per team: a live game takes priority, then the most recent
+// final result, then the next scheduled game — whichever is most relevant
+// to "what's going on with this team right now."
+async function tickerItemFor(team){
+  try{
+    const games = await fetchSchedule(team.code);
+    const sorted = games.slice().sort((a,b)=> new Date(a.dateISO) - new Date(b.dateISO));
+    const live = sorted.find(g=>g.status==='live');
+    const upcoming = sorted.find(g=>g.status==='scheduled');
+    const finals = sorted.filter(g=>g.status==='final');
+    const recent = finals[finals.length-1];
+
+    if(live){
+      const scoreText = (live.teamScore!==null && live.oppScore!==null)
+        ? ` ${live.teamScore}-${live.oppScore}` : '';
+      return `<span class="live-dot">●</span> ${team.name} live vs ${live.opponent}${scoreText}`;
+    }
+    if(recent){
+      return summarizeGame(recent, team).replace(/\.$/, '');
+    }
+    if(upcoming){
+      return `${team.name} next: ${formatDate(upcoming.dateISO)} vs ${upcoming.opponent}, ${formatTime(upcoming.dateISO)}`;
+    }
+    return `${team.name}: no games scheduled`;
+  }catch(e){
+    return `${team.name}: scores unavailable`;
+  }
+}
+
+async function renderTicker(){
+  const items = await Promise.all(TEAMS.map(tickerItemFor));
+  const itemsHtml = items.map(text=>`<span class="ticker-item">${text}</span>`).join('');
+  // Duplicated once so the track can loop seamlessly: animating to -50%
+  // lands exactly back on the same content as the start.
+  const track = document.getElementById('tickerTrack');
+  track.innerHTML = itemsHtml + itemsHtml;
+
+  const ticker = document.getElementById('ticker');
+  ticker.addEventListener('click', ()=> track.classList.toggle('paused'));
+}
+
 async function showTeam(code){
   const team = TEAMS.find(t=>t.code===code);
   document.getElementById('teamHeader').innerHTML = `
@@ -217,3 +258,4 @@ async function showTeam(code){
 document.getElementById('backBtn').addEventListener('click', showHome);
 
 renderHome();
+renderTicker();
