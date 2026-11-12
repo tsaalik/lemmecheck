@@ -11,6 +11,49 @@ const TEAMS = [
 // ESPN and a matching highlight video from YouTube — run it with `npm run api`.
 const API_BASE = "http://localhost:3001";
 
+// ---- YouTube player embedding ----
+// The backend's "is this embeddable" check (YouTube's status.embeddable
+// field) turned out to not be fully reliable — a video can report
+// embeddable: true and still fail to actually play, since that field
+// doesn't capture everything that can block embedded playback (region
+// restrictions, rights-management claims, etc.). So instead of trusting
+// that field as a hard gate, every matched video gets a real embed
+// attempt, and YouTube's own player tells us — via a genuine onError
+// event — whether it actually failed, which is the only fully reliable
+// signal. On a real failure, the broken player is swapped out for just
+// the "Watch on YouTube" link instead.
+let youtubeApiReady = false;
+const pendingPlayers = [];
+window.onYouTubeIframeAPIReady = function(){
+  youtubeApiReady = true;
+  pendingPlayers.forEach(create => create());
+  pendingPlayers.length = 0;
+};
+
+function embedVideo(containerId, videoId, onFail){
+  let settled = false;
+  const fail = ()=>{ if(!settled){ settled = true; onFail(); } };
+
+  function create(){
+    if(!document.getElementById(containerId)) return; // panel was closed/replaced before the API loaded
+    new YT.Player(containerId, {
+      videoId: videoId,
+      playerVars: { rel: 0 },
+      events: {
+        onReady: ()=>{ settled = true; },
+        onError: fail,
+      },
+    });
+  }
+  if(youtubeApiReady && window.YT && window.YT.Player) create();
+  else pendingPlayers.push(create);
+
+  // If an ad blocker or similar keeps YouTube's player script from ever
+  // loading at all, neither onReady nor onError would ever fire, leaving a
+  // permanently empty box — this catches that case too.
+  setTimeout(fail, 8000);
+}
+
 function formatDate(iso){
   return new Date(iso).toLocaleDateString('en-US', { month:'short', day:'numeric' });
 }
@@ -124,19 +167,19 @@ async function loadHighlightsInto(gameEl, team, game){
     ]);
     const recapSection = recapHtml(recap, game, team);
     if(result.available){
-      // Only embed when it's confirmed to actually play — some uploaders
-      // disable embedding per-video, and showing that broken state (a black
-      // box with YouTube's own "video unavailable" message) is worse than
-      // just linking out in the first place.
-      const videoSection = result.embeddable
-        ? `<div class="video-embed"><iframe src="https://www.youtube.com/embed/${result.videoId}" allowfullscreen></iframe></div>`
-        : '';
+      const playerContainerId = `player-${game.id}`;
       body.innerHTML = `
         <p>Highlights</p>
-        ${videoSection}
+        <div class="video-embed"><div id="${playerContainerId}"></div></div>
         <div class="note">${result.title}</div>
         <a class="watch-link" href="https://www.youtube.com/watch?v=${result.videoId}" target="_blank" rel="noopener">Watch on YouTube ↗</a>
         ${recapSection}`;
+      embedVideo(playerContainerId, result.videoId, ()=>{
+        // Real playback failure, confirmed by YouTube's own player — remove
+        // the broken embed and keep just the link and recap.
+        const wrapper = document.querySelector(`#${playerContainerId}`)?.closest('.video-embed');
+        if(wrapper) wrapper.remove();
+      });
     } else {
       body.innerHTML = `<p>Highlights</p><div class="note">No highlight video found for this game yet.</div>${recapSection}`;
     }
