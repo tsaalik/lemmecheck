@@ -100,6 +100,12 @@ header h1{
   text-transform:uppercase;
   letter-spacing:0.5px;
 }
+.launcher .launcher-stats{
+  margin-top:-6px;
+  font-size:11px;
+  color:var(--muted);
+  text-align:center;
+}
 
 .back-btn{
   display:block;

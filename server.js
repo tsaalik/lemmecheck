@@ -2,6 +2,7 @@
 //
 // It does three things, all so the frontend never needs a secret key:
 //   GET /api/schedule?code=MLB         real schedule/scores from ESPN (no key needed)
+//   GET /api/standing?code=MLB         real record + division standing from ESPN (no key needed)
 //   GET /api/recap?code=MLB&eventId=.. a few real key plays (or an article recap) for
 //                                       one game, from ESPN (no key needed)
 //   GET /api/highlights?sport=...&team=...&opponent=...&date=...
@@ -42,6 +43,16 @@ const TEAMS = {
   NHL: { name: 'Bruins',   espnSport: 'hockey',     espnLeague: 'nhl', espnTeam: 'bos' },
 };
 
+// Each team's division, by ESPN team abbreviation — stable for a whole
+// season, so it's simpler to list here than to work out from the API,
+// which only groups standings down to conference/league, not division.
+const DIVISIONS = {
+  MLB: { name: 'AL East',  teamIds: ['NYY', 'BOS', 'TOR', 'TB', 'BAL'] },
+  NFL: { name: 'AFC East', teamIds: ['NE', 'BUF', 'MIA', 'NYJ'] },
+  NBA: { name: 'Atlantic', teamIds: ['BOS', 'NY', 'PHI', 'BKN', 'TOR'] },
+  NHL: { name: 'Atlantic', teamIds: ['BOS', 'TOR', 'TB', 'FLA', 'BUF', 'DET', 'OTT', 'MTL'] },
+};
+
 async function fetchSchedule(code) {
   const team = TEAMS[code];
   if (!team) return [];
@@ -78,6 +89,53 @@ function normalizeSchedule(data, team) {
       status,
     };
   });
+}
+
+async function fetchStanding(code) {
+  const team = TEAMS[code];
+  const division = DIVISIONS[code];
+  if (!team || !division) return { record: null, standing: null };
+
+  const url = `https://site.api.espn.com/apis/v2/sports/${team.espnSport}/${team.espnLeague}/standings`;
+  const res = await fetch(url);
+  const data = await res.json();
+  return normalizeStanding(data, team, division);
+}
+
+// This endpoint only groups standings down to conference/league, not
+// division, so divisional rank is computed here: flatten every
+// conference's entries into one list, keep just the division's own teams,
+// sort by win percentage, and find where our team landed.
+function normalizeStanding(data, team, division) {
+  const allEntries = [];
+  (data.children || []).forEach(conf => {
+    (conf.standings && conf.standings.entries || []).forEach(e => allEntries.push(e));
+  });
+
+  const divisionEntries = allEntries
+    .filter(e => division.teamIds.includes(e.team.abbreviation))
+    .map(e => {
+      const winPercent = e.stats.find(s => s.name === 'winPercent');
+      const overall = e.stats.find(s => s.name === 'overall');
+      return {
+        abbr: e.team.abbreviation,
+        winPercent: winPercent ? winPercent.value : 0,
+        record: overall ? overall.summary : null,
+      };
+    })
+    .sort((a, b) => b.winPercent - a.winPercent);
+
+  const rank = divisionEntries.findIndex(t => t.abbr === team.espnTeam.toUpperCase()) + 1;
+  const us = divisionEntries[rank - 1];
+  if (!us) return { record: null, standing: null };
+
+  return { record: us.record, standing: `${ordinal(rank)} in ${division.name}` };
+}
+
+function ordinal(n) {
+  const suffixes = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return n + (suffixes[(v - 20) % 10] || suffixes[v] || suffixes[0]);
 }
 
 // ---- Game recap (key plays, then stat leaders, then an article, in order) ----
@@ -354,6 +412,10 @@ const server = http.createServer(async (req, res) => {
       const games = await fetchSchedule(url.searchParams.get('code'));
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(games));
+    } else if (url.pathname === '/api/standing') {
+      const standing = await fetchStanding(url.searchParams.get('code'));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(standing));
     } else if (url.pathname === '/api/recap') {
       const recap = await fetchRecap(url.searchParams.get('code'), url.searchParams.get('eventId'));
       res.writeHead(200, { 'Content-Type': 'application/json' });

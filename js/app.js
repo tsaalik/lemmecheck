@@ -46,6 +46,12 @@ async function fetchHighlight(team, game){
   return res.json();
 }
 
+async function fetchStanding(code){
+  const res = await fetch(`${API_BASE}/api/standing?code=${code}`);
+  if(!res.ok) throw new Error('standing request failed');
+  return res.json();
+}
+
 async function fetchRecap(team, game){
   const params = new URLSearchParams({ code: team.code, eventId: game.id });
   const res = await fetch(`${API_BASE}/api/recap?${params}`);
@@ -140,10 +146,21 @@ function renderHome(){
     <div class="launcher" data-code="${team.code}">
       <div class="icon" style="background:${team.color}">${team.emoji}</div>
       <div class="name">${team.name}</div>
+      <div class="launcher-stats" id="stats-${team.code}">Loading…</div>
     </div>
   `).join('');
   grid.querySelectorAll('.launcher').forEach(el=>{
     el.addEventListener('click', ()=>showTeam(el.dataset.code));
+  });
+
+  TEAMS.forEach(async team=>{
+    const statsEl = document.getElementById(`stats-${team.code}`);
+    try{
+      const { record, standing } = await fetchStanding(team.code);
+      statsEl.textContent = (record && standing) ? `${record} · ${standing}` : 'Record unavailable';
+    }catch(e){
+      statsEl.textContent = 'Record unavailable';
+    }
   });
 }
 
