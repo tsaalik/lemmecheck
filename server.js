@@ -373,9 +373,30 @@ function scoreCandidate(game, teamName, video) {
   return { video, score, eligible: hasTeam && hasOpp && dateMatched };
 }
 
-function bestMatch(game, teamName, candidates) {
-  const scored = candidates.map(v => scoreCandidate(game, teamName, v)).sort((a, b) => b.score - a.score);
-  return scored.find(r => r.eligible) || null;
+function eligibleMatches(game, teamName, candidates) {
+  return candidates
+    .map(v => scoreCandidate(game, teamName, v))
+    .filter(r => r.eligible)
+    .sort((a, b) => b.score - a.score);
+}
+
+// Checked whether "prefer a specific channel" (ESPN Deportes was suggested)
+// would reliably give embeddable videos, and it doesn't hold up: a check of
+// real official-NBA-channel uploads showed `embeddable: true` just as often
+// as third-party ones, so it's not a channel-level rule at all — it varies
+// per video. The actual fix is to check embeddability directly and pick
+// whichever eligible match actually works, in one cheap batched call (1
+// quota unit total, vs. 100 for the search that already ran).
+async function checkEmbeddable(videoIds) {
+  if (!videoIds.length) return {};
+  const params = new URLSearchParams({ part: 'status', id: videoIds.join(',') });
+  const res = await fetch(`https://www.googleapis.com/youtube/v3/videos?${params}`, {
+    headers: { 'x-goog-api-key': YOUTUBE_API_KEY },
+  });
+  const data = await res.json();
+  const map = {};
+  (data.items || []).forEach(item => { map[item.id] = item.status.embeddable; });
+  return map;
 }
 
 async function findHighlight(teamName, opponent, dateISO) {
@@ -396,10 +417,20 @@ async function findHighlight(teamName, opponent, dateISO) {
     videoId: item.id.videoId,
   }));
   const game = { date: isoToShortDate(dateISO), opponent };
-  const winner = bestMatch(game, teamName, candidates);
+  const matches = eligibleMatches(game, teamName, candidates);
 
-  if (!winner) return { available: false, reason: 'no-confident-match' };
-  return { available: true, videoId: winner.video.videoId, title: winner.video.title };
+  if (!matches.length) return { available: false, reason: 'no-confident-match' };
+
+  const embeddableMap = await checkEmbeddable(matches.map(m => m.video.videoId));
+  const embeddablePick = matches.find(m => embeddableMap[m.video.videoId]);
+  const winner = embeddablePick || matches[0];
+
+  return {
+    available: true,
+    videoId: winner.video.videoId,
+    title: winner.video.title,
+    embeddable: !!embeddableMap[winner.video.videoId],
+  };
 }
 
 // ---- HTTP server ----

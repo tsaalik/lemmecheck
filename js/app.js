@@ -124,11 +124,16 @@ async function loadHighlightsInto(gameEl, team, game){
     ]);
     const recapSection = recapHtml(recap, game, team);
     if(result.available){
+      // Only embed when it's confirmed to actually play — some uploaders
+      // disable embedding per-video, and showing that broken state (a black
+      // box with YouTube's own "video unavailable" message) is worse than
+      // just linking out in the first place.
+      const videoSection = result.embeddable
+        ? `<div class="video-embed"><iframe src="https://www.youtube.com/embed/${result.videoId}" allowfullscreen></iframe></div>`
+        : '';
       body.innerHTML = `
         <p>Highlights</p>
-        <div class="video-embed">
-          <iframe src="https://www.youtube.com/embed/${result.videoId}" allowfullscreen></iframe>
-        </div>
+        ${videoSection}
         <div class="note">${result.title}</div>
         <a class="watch-link" href="https://www.youtube.com/watch?v=${result.videoId}" target="_blank" rel="noopener">Watch on YouTube ↗</a>
         ${recapSection}`;
