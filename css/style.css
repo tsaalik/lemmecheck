@@ -266,6 +266,16 @@ header h1{
   height:100%;
   border:0;
 }
+.video-embed .player-loading{
+  position:absolute;
+  inset:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:#ffffff;
+  font-size:12px;
+  opacity:0.7;
+}
 
 .watch-link{
   display:inline-block;

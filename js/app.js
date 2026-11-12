@@ -30,7 +30,7 @@ window.onYouTubeIframeAPIReady = function(){
   pendingPlayers.length = 0;
 };
 
-function embedVideo(containerId, videoId, onFail){
+function embedVideo(containerId, videoId, onReady, onFail){
   let settled = false;
   const fail = ()=>{ if(!settled){ settled = true; onFail(); } };
 
@@ -40,7 +40,7 @@ function embedVideo(containerId, videoId, onFail){
       videoId: videoId,
       playerVars: { rel: 0 },
       events: {
-        onReady: ()=>{ settled = true; },
+        onReady: ()=>{ settled = true; onReady(); },
         onError: fail,
       },
     });
@@ -51,7 +51,7 @@ function embedVideo(containerId, videoId, onFail){
   // If an ad blocker or similar keeps YouTube's player script from ever
   // loading at all, neither onReady nor onError would ever fire, leaving a
   // permanently empty box — this catches that case too.
-  setTimeout(fail, 8000);
+  setTimeout(fail, 6000);
 }
 
 function formatDate(iso){
@@ -170,16 +170,24 @@ async function loadHighlightsInto(gameEl, team, game){
       const playerContainerId = `player-${game.id}`;
       body.innerHTML = `
         <p>Highlights</p>
-        <div class="video-embed"><div id="${playerContainerId}"></div></div>
+        <div class="video-embed" id="wrap-${playerContainerId}">
+          <div class="player-loading">Loading video…</div>
+          <div id="${playerContainerId}"></div>
+        </div>
         <div class="note">${result.title}</div>
         <a class="watch-link" href="https://www.youtube.com/watch?v=${result.videoId}" target="_blank" rel="noopener">Watch on YouTube ↗</a>
         ${recapSection}`;
-      embedVideo(playerContainerId, result.videoId, ()=>{
-        // Real playback failure, confirmed by YouTube's own player — remove
-        // the broken embed and keep just the link and recap.
-        const wrapper = document.querySelector(`#${playerContainerId}`)?.closest('.video-embed');
-        if(wrapper) wrapper.remove();
-      });
+      const wrapperEl = document.getElementById(`wrap-${playerContainerId}`);
+      embedVideo(
+        playerContainerId,
+        result.videoId,
+        ()=>{ wrapperEl?.querySelector('.player-loading')?.remove(); },
+        ()=>{
+          // Real playback failure, confirmed by YouTube's own player — remove
+          // the broken embed and keep just the link and recap.
+          wrapperEl?.remove();
+        }
+      );
     } else {
       body.innerHTML = `<p>Highlights</p><div class="note">No highlight video found for this game yet.</div>${recapSection}`;
     }
