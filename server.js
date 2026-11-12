@@ -399,6 +399,11 @@ async function checkEmbeddable(videoIds) {
   return map;
 }
 
+// How many matching candidates to hand to the frontend, which tries them
+// in order — via a real embed attempt, not just this endpoint's embeddable
+// check — until one actually plays or the list runs out.
+const MAX_HIGHLIGHT_CANDIDATES = 3;
+
 async function findHighlight(teamName, opponent, dateISO) {
   if (!YOUTUBE_API_KEY) return { available: false, reason: 'missing-api-key' };
 
@@ -421,15 +426,21 @@ async function findHighlight(teamName, opponent, dateISO) {
 
   if (!matches.length) return { available: false, reason: 'no-confident-match' };
 
+  // The embeddable flag still isn't fully reliable on its own (confirmed: a
+  // video can report embeddable: true and still fail to actually play), so
+  // it's only used here to put more-likely-to-work candidates first — real
+  // verification happens in the browser via a genuine embed attempt.
   const embeddableMap = await checkEmbeddable(matches.map(m => m.video.videoId));
-  const embeddablePick = matches.find(m => embeddableMap[m.video.videoId]);
-  const winner = embeddablePick || matches[0];
+  const ranked = matches.slice().sort((a, b) =>
+    (embeddableMap[b.video.videoId] ? 1 : 0) - (embeddableMap[a.video.videoId] ? 1 : 0)
+  );
 
   return {
     available: true,
-    videoId: winner.video.videoId,
-    title: winner.video.title,
-    embeddable: !!embeddableMap[winner.video.videoId],
+    candidates: ranked.slice(0, MAX_HIGHLIGHT_CANDIDATES).map(m => ({
+      videoId: m.video.videoId,
+      title: m.video.title,
+    })),
   };
 }
 

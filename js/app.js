@@ -167,33 +167,48 @@ async function loadHighlightsInto(gameEl, team, game){
     ]);
     const recapSection = recapHtml(recap, game, team);
     if(result.available){
-      const playerContainerId = `player-${game.id}`;
-      body.innerHTML = `
-        <p>Highlights</p>
-        <div class="video-embed" id="wrap-${playerContainerId}">
-          <div class="player-loading">Loading video…</div>
-          <div id="${playerContainerId}"></div>
-        </div>
-        <div class="note">${result.title}</div>
-        <a class="watch-link" href="https://www.youtube.com/watch?v=${result.videoId}" target="_blank" rel="noopener">Watch on YouTube ↗</a>
-        ${recapSection}`;
-      const wrapperEl = document.getElementById(`wrap-${playerContainerId}`);
-      embedVideo(
-        playerContainerId,
-        result.videoId,
-        ()=>{ wrapperEl?.querySelector('.player-loading')?.remove(); },
-        ()=>{
-          // Real playback failure, confirmed by YouTube's own player — remove
-          // the broken embed and keep just the link and recap.
-          wrapperEl?.remove();
-        }
-      );
+      tryVideoCandidates(body, game, result.candidates, 0, recapSection);
     } else {
       body.innerHTML = `<p>Highlights</p><div class="note">No highlight video found for this game yet.</div>${recapSection}`;
     }
   }catch(e){
     body.innerHTML = `<p>Highlights</p><div class="note">Couldn't reach the local API server — make sure "npm run api" is running in a separate terminal.</div>`;
   }
+}
+
+// Tries each candidate video in turn (real embed attempt, not just the
+// backend's embeddable check) until one actually plays, falling back to a
+// plain "Watch on YouTube" link for the best match only once every
+// candidate has genuinely failed.
+function tryVideoCandidates(body, game, candidates, index, recapSection){
+  if(index >= candidates.length){
+    const best = candidates[0];
+    body.innerHTML = `
+      <p>Highlights</p>
+      <div class="note">${best.title}</div>
+      <a class="watch-link" href="https://www.youtube.com/watch?v=${best.videoId}" target="_blank" rel="noopener">Watch on YouTube ↗</a>
+      ${recapSection}`;
+    return;
+  }
+
+  const candidate = candidates[index];
+  const playerContainerId = `player-${game.id}`;
+  body.innerHTML = `
+    <p>Highlights</p>
+    <div class="video-embed" id="wrap-${playerContainerId}">
+      <div class="player-loading">Loading video…</div>
+      <div id="${playerContainerId}"></div>
+    </div>
+    <div class="note">${candidate.title}</div>
+    <a class="watch-link" href="https://www.youtube.com/watch?v=${candidate.videoId}" target="_blank" rel="noopener">Watch on YouTube ↗</a>
+    ${recapSection}`;
+  const wrapperEl = document.getElementById(`wrap-${playerContainerId}`);
+  embedVideo(
+    playerContainerId,
+    candidate.videoId,
+    ()=>{ wrapperEl?.querySelector('.player-loading')?.remove(); },
+    ()=>{ tryVideoCandidates(body, game, candidates, index + 1, recapSection); }
+  );
 }
 
 function renderHome(){
