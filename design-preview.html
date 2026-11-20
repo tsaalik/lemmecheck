@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Design preview — Beantown Hub</title>
+<style>
+  :root{
+    --bg:#0b0f0d;
+    --card:#161a17;
+    --card-border:#262b27;
+    --ink:#f4f6f3;
+    --muted:#8a9389;
+    --accent:#c6f73e;
+    --foul:#ef4444;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Roboto Mono",monospace;
+    --sans:"Helvetica Neue",Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    padding:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--sans);
+    min-height:100vh;
+  }
+  .wrap{max-width:420px;margin:0 auto;padding:0 16px 60px;}
+
+  header{padding:20px 0 4px;}
+  header h1{
+    margin:0;
+    text-align:center;
+    font-size:26px;
+    font-weight:800;
+    letter-spacing:0.5px;
+    text-transform:uppercase;
+    color:var(--ink);
+  }
+
+  .ticker{
+    overflow:hidden;
+    margin:0 -16px 20px;
+    padding:9px 0;
+    border-top:1px solid var(--card-border);
+    border-bottom:1px solid var(--card-border);
+  }
+  .ticker-track{display:inline-flex;white-space:nowrap;animation:ticker-scroll 28s linear infinite;}
+  .ticker-item{
+    display:inline-flex;align-items:center;gap:6px;
+    color:var(--accent);
+    font-size:13px;font-weight:700;
+    text-transform:uppercase;letter-spacing:0.3px;
+    padding:0 28px;white-space:nowrap;
+  }
+  .ticker-item .live-dot{color:var(--foul);}
+  @keyframes ticker-scroll{from{transform:translateX(0);}to{transform:translateX(-50%);}}
+
+  .launcher-grid{
+    display:grid;
+    grid-template-columns:repeat(2,1fr);
+    gap:16px;
+  }
+  .launcher{
+    display:flex;flex-direction:column;align-items:center;gap:12px;
+    background:var(--card);
+    border:1px solid var(--card-border);
+    border-radius:20px;
+    padding:28px 10px;
+  }
+  .launcher.active{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent);}
+  .launcher .icon{
+    width:64px;height:64px;
+    border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    font-size:30px;
+  }
+  .launcher .name{
+    font-weight:700;font-size:14px;color:var(--ink);
+    text-transform:uppercase;letter-spacing:0.5px;
+  }
+  .launcher .stats{
+    margin-top:-6px;font-size:11px;color:var(--muted);text-align:center;
+  }
+  .launcher .stats strong{color:var(--accent);font-family:var(--mono);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header><h1>Beantown Hub</h1></header>
+
+  <div class="ticker">
+    <div class="ticker-track">
+      <span class="ticker-item"><span class="live-dot">●</span> CELTICS LIVE VS 76ERS</span>
+      <span class="ticker-item">THE PATRIOTS FELL TO THE PACKERS 27-45 AT HOME</span>
+      <span class="ticker-item">THE BRUINS BEAT THE PANTHERS 4-1 AT HOME</span>
+      <span class="ticker-item">THE RED SOX FELL TO THE YANKEES 2-9 ON THE ROAD</span>
+      <span class="ticker-item"><span class="live-dot">●</span> CELTICS LIVE VS 76ERS</span>
+      <span class="ticker-item">THE PATRIOTS FELL TO THE PACKERS 27-45 AT HOME</span>
+      <span class="ticker-item">THE BRUINS BEAT THE PANTHERS 4-1 AT HOME</span>
+      <span class="ticker-item">THE RED SOX FELL TO THE YANKEES 2-9 ON THE ROAD</span>
+    </div>
+  </div>
+
+  <div class="launcher-grid">
+    <div class="launcher">
+      <div class="icon" style="background:#bd3039">⚾</div>
+      <div class="name">Red Sox</div>
+      <div class="stats"><strong>87-75</strong> · 3rd in AL East</div>
+    </div>
+    <div class="launcher">
+      <div class="icon" style="background:#002244">🏈</div>
+      <div class="name">Patriots</div>
+      <div class="stats"><strong>5-4</strong> · 2nd in AFC East</div>
+    </div>
+    <div class="launcher active">
+      <div class="icon" style="background:#007a33">🏀</div>
+      <div class="name">Celtics</div>
+      <div class="stats"><strong>10-2</strong> · 1st in Atlantic</div>
+    </div>
+    <div class="launcher">
+      <div class="icon" style="background:#111111">🏒</div>
+      <div class="name">Bruins</div>
+      <div class="stats"><strong>13-4-1</strong> · 1st in Atlantic</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
